@@ -123,6 +123,7 @@ trend <- new_master %>%
   summarise(Vol = sum(Volume, na.rm = T)) %>%
   pivot_wider(id_cols = c(DepID),names_from = END.DATE, values_from = Vol)
 
+View(trend)
 
 #save upload
 write.table(upload,paste0(RIS_dir,"Uploads/MSQ_RIS_",month_year,".csv"),
