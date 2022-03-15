@@ -48,7 +48,20 @@ nuc_med <- RIS %>%
   #select column order for upload
   select(Facility, Site, DeptID, Date, Date2, CPT4, volume, Budget)
 
-
+min_date <- min(as.Date(nuc_med$Date, format = "%m/%d/%Y"))
+min_mon <- toupper(month.abb[month(min_date)])
+min_date_save <- paste0(substr(min_date,9,10),
+                        min_mon,
+                        substr(min_date,1,4))
+max_date <- max(as.Date(nuc_med$Date, format = "%m/%d/%Y"))
+max_mon <- toupper(month.abb[month(min_date)])
+max_date_save <- paste0(substr(max_date,9,10),
+                        min_mon,
+                        substr(max_date,1,4))
+write.csv(nuc_med, paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
+                          "Productivity/Volume - Data/MSH Data/RIS/Uploads/",
+                          "Nuc Med/MSH_Nuc Med RIS_",
+                          min_date_save, " to ",max_date_save, ".csv"))
 #---------MASTER (Daniel hold off un running until like 65!!!!!)---------------
 #read old master
 old_master <- readRDS(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
@@ -62,6 +75,25 @@ new_master <- rbind(old_master, nuc_med)
 saveRDS(new_master, paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
                         "Productivity/Volume - Data/MSH Data/RIS/Master/",
                         "Nuc Med/Master.rds"))
+
+#Quality Check
+pp_mapping <- read_xlsx(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
+                               "Productivity/Universal Data/Mapping/",
+                               "MSHS_Pay_Cycle.xlsx"))
+
+pp_mapping$DATE <- format(as.Date(pp_mapping$DATE), "%m/%d/%Y")
+pp_mapping$END.DATE <- format(as.Date(pp_mapping$END.DATE), "%m/%d/%Y")
+
+pp_mapping[, 1] <- sapply(pp_mapping[, 1], as.character)
+
+trend <- new_master %>%
+  left_join(pp_mapping, by = c('Date2' = 'DATE')) %>% 
+  ungroup() %>%
+  group_by(DeptID,END.DATE) %>%
+  summarise(Vol = sum(volume, na.rm = T)) %>%
+  pivot_wider(id_cols = c(DeptID),names_from = END.DATE, values_from = Vol)
+
+View(trend)
 
 #save upload
 min_date <- min(as.Date(nuc_med$Date, format = "%m/%d/%Y"))
