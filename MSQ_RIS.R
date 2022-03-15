@@ -105,6 +105,25 @@ new_master <- rbind(old_master, upload)
 saveRDS(new_master, paste0(RIS_dir,"Master/Master.rds"))
 ####################################################
 
+#Trend Check
+pp_mapping <- read_xlsx(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
+                               "Productivity/Universal Data/Mapping/",
+                               "MSHS_Pay_Cycle.xlsx"))
+
+pp_mapping$DATE <- format(as.Date(pp_mapping$DATE), "%m/%d/%Y")
+pp_mapping$END.DATE <- format(as.Date(pp_mapping$END.DATE), "%m/%d/%Y")
+
+pp_mapping[, 1] <- sapply(pp_mapping[, 1], as.character)
+
+trend <- new_master %>%
+  left_join(pp_mapping, by = c("End" = 'DATE')) %>% 
+  na.omit(trend) %>% #DELETE once date issue is fixed
+  ungroup() %>%
+  group_by(DepID,END.DATE) %>%
+  summarise(Vol = sum(Volume, na.rm = T)) %>%
+  pivot_wider(id_cols = c(DepID),names_from = END.DATE, values_from = Vol)
+
+
 #save upload
 write.table(upload,paste0(RIS_dir,"Uploads/MSQ_RIS_",month_year,".csv"),
             sep = ",", row.names = F, col.names = F)
