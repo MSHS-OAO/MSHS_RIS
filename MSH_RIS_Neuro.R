@@ -5,6 +5,9 @@ library(lubridate)
 RIS <- read.csv(file.choose(), 
                 colClasses = c(rep("character",21)))
 
+#modifiers we want to keep
+acceptable_modifiers <- c("26","50","53","tc")
+
 #Trim whitespace in charge detail
 RIS[,1:21] <- sapply(RIS[,1:21], trimws)
 
@@ -17,6 +20,20 @@ neuro <- RIS %>%
   filter(code != "") %>%
   #drop charge column
   select(-charge) %>%
+  #reome unwated modifier
+  mutate(
+    Charge.Mod.1 = case_when(
+      Charge.Mod.1 %in% acceptable_modifiers ~ Charge.Mod.1,
+      TRUE ~ ""),
+    Charge.Mod.2 = case_when(
+      Charge.Mod.2 %in% acceptable_modifiers ~ Charge.Mod.2,
+      TRUE ~ ""),
+    Charge.Mod.3 = case_when(
+      Charge.Mod.3 %in% acceptable_modifiers ~ Charge.Mod.3,
+      TRUE ~ ""),
+    Charge.Mod.4 = case_when(
+      Charge.Mod.4 %in% acceptable_modifiers ~ Charge.Mod.4,
+      TRUE ~ "")) %>%
   #unite charge and 
   unite(CPT4, 
         code, Charge.Mod.1, Charge.Mod.2, Charge.Mod.3, Charge.Mod.4, 
