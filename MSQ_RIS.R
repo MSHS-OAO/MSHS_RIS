@@ -2,6 +2,7 @@ library(readxl)
 library(here)
 library(tidyverse)
 library(xlsx)
+library(lubridate)
 
 #MSQ RIS directory
 RIS_dir <- paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
@@ -106,7 +107,6 @@ saveRDS(new_master, paste0(RIS_dir,"Master/Master.rds"))
 ####################################################
 
 #Trend Check
-
 pp_mapping <- read_xlsx(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
                                "Productivity/Universal Data/Mapping/",
                                "MSHS_Pay_Cycle.xlsx"))
@@ -116,12 +116,8 @@ pp_mapping$END.DATE <- format(as.Date(pp_mapping$END.DATE), "%m/%d/%Y")
 
 pp_mapping[, 1] <- sapply(pp_mapping[, 1], as.character)
 
-pp_mapping <- pp_mapping %>% 
-  mutate(DATE = trimws(as.character(DATE)))
-
 new_master$End <- mdy(new_master$End)
 new_master$End <- format((new_master$End), "%m/%d/%Y")
-
 
 trend <- new_master %>%
   left_join(pp_mapping, by = c("End" = 'DATE')) %>% 
@@ -129,7 +125,6 @@ trend <- new_master %>%
   group_by(DepID,END.DATE) %>%
   summarise(Vol = sum(Volume, na.rm = T)) %>%
   pivot_wider(id_cols = c(DepID),names_from = END.DATE, values_from = Vol)
-
 
 View(trend)
 
