@@ -1,6 +1,7 @@
 library(tidyverse)
 library(xlsx)
 library(readxl)
+library(lubridate)
 
 #MSH RIS directory
 RIS_dir <- paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
@@ -106,9 +107,11 @@ pp_mapping$END.DATE <- format(as.Date(pp_mapping$END.DATE), "%m/%d/%Y")
 
 pp_mapping[, 1] <- sapply(pp_mapping[, 1], as.character)
 
+new_master$End <- mdy(new_master$End)
+new_master$End <- format((new_master$End), "%m/%d/%Y")
+
 trend <- new_master %>%
   left_join(pp_mapping, by = c("End" = 'DATE')) %>% 
-  na.omit(trend) %>% #DELETE once date issue is fixed
   ungroup() %>%
   group_by(DepID,END.DATE) %>%
   summarise(Vol = sum(Volume, na.rm = T)) %>%
