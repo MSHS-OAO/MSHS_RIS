@@ -3,6 +3,7 @@ library(here)
 library(tidyverse)
 library(xlsx)
 library(lubridate)
+library(dplyr)
 
 #MSQ RIS directory
 RIS_dir <- paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
@@ -30,6 +31,20 @@ Dep_ID <- read_xlsx(paste0(RIS_dir,"Mapping/Dep_ID.xlsx"),
                     col_types = c("text","text"))
 #Premier Dep ID for CPT upload
 Premier_Dep <- read_xlsx(paste0(RIS_dir,"Mapping/Premier_Dep.xlsx"))
+
+#Read in pay period mapping for trend
+pp_mapping <- read_xlsx(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
+                               "Productivity/Universal Data/Mapping/",
+                               "MSHS_Pay_Cycle.xlsx"))
+
+#Read in department mapping for trend
+dept_mapping <- read_xlsx(paste0(RIS_dir,"/Mapping/",
+                                 "Dep_Description_Mapping.xlsx"))
+
+#Read in CPT reference for trend mapping and selects columns needed
+cpt_mapping <- read_xlsx(paste0(RIS_dir,"/Mapping/",
+                                "CPT_Ref.xlsx")) %>%
+  select(1, 2, 3, 5, 12)
 
 #remove whitespaces
 RIS[,1:21] <- sapply(RIS[,1:21], trimws)
@@ -102,31 +117,56 @@ upload <- rbind(RIS_cpt4_upload, RIS_OR_upload)
 
 ##################need to create master append code  
 old_master <- readRDS(paste0(RIS_dir,"Master/Master.rds"))
-new_master <- rbind(old_master, upload)
+if(max(as.Date(old_master$END,format = "%m/%d/%Y")) < min(as.Date(upload$Start,format = "%m/%d/%Y"))){
+  new_master <- rbind.data.frame(old_master,upload)
+} else {
+  stop("Raw data overlaps with master")
+}
 saveRDS(new_master, paste0(RIS_dir,"Master/Master.rds"))
 ####################################################
 
 #Trend Check
-pp_mapping <- read_xlsx(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
-                               "Productivity/Universal Data/Mapping/",
-                               "MSHS_Pay_Cycle.xlsx"))
+#Trend Check
+#Getting quarters from dates
+qrts <- quarters(mdy(new_master$End))
 
+#Puts pay period mapping dates into compatible format and converts to character
 pp_mapping$DATE <- format(as.Date(pp_mapping$DATE), "%m/%d/%Y")
 pp_mapping$END.DATE <- format(as.Date(pp_mapping$END.DATE), "%m/%d/%Y")
-
 pp_mapping[, 1] <- sapply(pp_mapping[, 1], as.character)
 
+#Puts master dates into compatible format for mapping
 new_master$End <- mdy(new_master$End)
 new_master$End <- format((new_master$End), "%m/%d/%Y")
 
+#Converts volume column to numeric to allow for summing
+new_master$Volume <- as.numeric(new_master$Volume)
+
+#Creates concatenate column to use for left join
+new_master$'Concatenate for lookup' <- paste0(substr(new_master$End,7,10), qrts, new_master$CPT)
+
+#Creates a trend of the master biweekly to verify data is accurate
 trend <- new_master %>%
-  left_join(pp_mapping, by = c("End" = 'DATE')) %>% 
+  left_join(.,cpt_mapping) %>%
+  na.omit() %>%
+  left_join(pp_mapping, by = c("End" = 'DATE')) %>%
+  left_join(dept_mapping, by = c("DepID" = "Department.ID")) %>%
+  mutate(True_Volume = case_when(
+    CPT.Group == "Procedure" ~ Volume * `CPT Procedure Count`,
+    CPT.Group == "RVU" ~ Volume * `Facility Total RVU Factor`)) %>%
   ungroup() %>%
-  group_by(DepID,END.DATE) %>%
-  summarise(Vol = sum(Volume, na.rm = T)) %>%
-  pivot_wider(id_cols = c(DepID),names_from = END.DATE, values_from = Vol)
+  group_by(DepID, Department.Description, CPT.Group, END.DATE) %>%
+  na.omit() %>%
+  summarise(Vol = sum(True_Volume, na.rm = T)) %>%
+  arrange(END.DATE) %>%
+  pivot_wider(id_cols = c(DepID, Department.Description, CPT.Group),names_from = END.DATE, values_from = Vol)
 
 View(trend)
+
+#Save master trend
+old_trend_master <- readRDS(paste0(RIS_dir,"Master/Master_Trend.rds"))
+new_trend_master <- rbind(old_trend_master, trend)
+saveRDS(new_trend_master, paste0(RIS_dir,"Master/Master_Trend.rds"))
 
 #save upload
 write.table(upload,paste0(RIS_dir,"Uploads/MSQ_RIS_",month_year,".csv"),
