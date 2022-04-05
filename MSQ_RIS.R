@@ -44,7 +44,7 @@ dept_mapping <- read_xlsx(paste0(RIS_dir,"/Mapping/",
 #Read in CPT reference for trend mapping and selects columns needed
 cpt_mapping <- read_xlsx(paste0(RIS_dir,"/Mapping/",
                                 "CPT_Ref.xlsx")) %>%
-  select(1, 2, 3, 5, 12)
+  select(1, 2, 3, 6, 12)
 
 #remove whitespaces
 RIS[,1:21] <- sapply(RIS[,1:21], trimws)
@@ -91,7 +91,9 @@ RIS_cpt4 <- left_join(RIS_charge_mod, CDM_join) %>%
     substr(Date,1,4))) %>%
   mutate(End = Start,
          Partner = "729805",
-         Hosp = "NY0014")
+         Hosp = "NY0014") %>%
+  mutate(Start = mdy(Start),
+         End = mdy(End))
 
 #prepare OR diagnostic volume
 RIS_OR_upload <- RIS_OR %>%
@@ -99,8 +101,8 @@ RIS_OR_upload <- RIS_OR %>%
   mutate(Partner = "729805",
          Hosp = "NY0014",
          DepID = "MSQRIS21008OR",
-         Start = Date,
-         End = Date,
+         Start = mdy(Date),
+         End = mdy(Date),
          CPT = "71045") %>%
   group_by(Partner,Hosp,DepID,Start,End,CPT) %>%
   summarise(Volume = n()) %>%
@@ -113,12 +115,22 @@ RIS_cpt4_upload <- RIS_cpt4 %>%
   mutate(Budget = "0")
 
 #combine upload files
-upload <- rbind(RIS_cpt4_upload, RIS_OR_upload)
+upload <- rbind(RIS_cpt4_upload, RIS_OR_upload) %>%
+  mutate(
+    Start = paste0(
+      substr(Start,6,7),"/",
+      substr(Start,9,10),"/",
+      substr(Start,1,4)),
+    End = paste0(
+      substr(End,6,7),"/",
+      substr(End,9,10),"/",
+      substr(End,1,4)))
 
 ##################need to create master append code  
 old_master <- readRDS(paste0(RIS_dir,"Master/Master.rds"))
-if(max(mdy(old_master$End)) < min(max(mdy(upload$Start)))){
-  new_master <- rbind.data.frame(old_master,upload)
+if(max(mdy(old_master$End)) < min(mdy(upload$Start))){
+  new_master <- rbind(as.data.frame(old_master),
+                      as.data.frame(upload))
 } else {
   stop("Raw data overlaps with master")
 }
@@ -135,12 +147,12 @@ trend <- new_master %>%
   mutate(`Concatenate for lookup` = paste0(substr(End,1,4), qrts, CPT), 
          Volume = as.numeric(Volume)) %>%
   left_join(.,cpt_mapping) %>%
-  filter(!is.na(`Facility Total RVU Factor`) | !is.na(`CPT Procedure Count`)) %>%
+  filter(!is.na(`Facility Practice Expense RVU Factor`) | !is.na(`CPT Procedure Count`)) %>%
   left_join(pp_mapping, by = c("End" = 'DATE')) %>%
   left_join(dept_mapping, by = c("DepID" = "Department.ID")) %>%
   mutate(True_Volume = case_when(
     CPT.Group == "Procedure" ~ Volume * `CPT Procedure Count`,
-    CPT.Group == "RVU" ~ Volume * `Facility Total RVU Factor`)) %>%
+    CPT.Group == "RVU" ~ Volume * `Facility Practice Expense RVU Factor`)) %>%
   ungroup() %>%
   group_by(DepID, Department.Description, CPT.Group, END.DATE) %>%
   #na.omit() %>% #Removes NA department
@@ -151,9 +163,7 @@ trend <- new_master %>%
 View(trend)
 
 #Save master trend
-old_trend_master <- readRDS(paste0(RIS_dir,"Master/Master_Trend.rds"))
-new_trend_master <- rbind(old_trend_master, trend)
-saveRDS(new_trend_master, paste0(RIS_dir,"Master/Master_Trend.rds"))
+saveRDS(trend, paste0(RIS_dir,"Master/Master_Trend.rds"))
 
 #save upload
 write.table(upload,paste0(RIS_dir,"Uploads/MSQ_RIS_",month_year,".csv"),
