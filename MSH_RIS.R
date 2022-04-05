@@ -9,6 +9,8 @@ RIS_dir <- paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
 
 #month and year of charge detail
 month_year <- "FEB2022"
+#Diagnostic OR scaling factor
+diagnostic_scaling <- 2.69
 
 #read in charge detail
 RIS <- read.csv(paste0(RIS_dir, "Charge Detail/MSH_RIS_", month_year, ".csv"), 
@@ -42,7 +44,7 @@ dept_mapping <- read_xlsx(paste0(RIS_dir,"/Mapping/",
 #Read in CPT reference for trend mapping and selects columns needed
 cpt_mapping <- read_xlsx(paste0(RIS_dir,"/Mapping/",
                             "CPT_Ref.xlsx")) %>%
-  select(1, 2, 3, 5, 12)
+  select(1, 2, 3, 6, 12)
 
 #remove whitespaces
 RIS[,1:21] <- sapply(RIS[,1:21], trimws)
@@ -93,11 +95,17 @@ RIS_OR_upload <- RIS_OR %>%
   mutate(Partner = "729805",
          Hosp = "NY0014",
          DepID = "MSHRIS21008OR",
-         Start = Date,
-         End = Date,
+         Start = mdy(Date),
+         End = mdy(Date),
          CPT4 = "71045") %>%
   select(Partner, Hosp, DepID, Start, End, CPT4) 
-
+RIS_OR_upload <- RIS_OR_upload %>%
+  mutate(Start = paste0(substr(Start,6,7), "/",
+                        substr(Start,9,10), "/",
+                        substr(Start,1,4)),
+         End = paste0(substr(End,6,7), "/",
+                      substr(End,9,10), "/",
+                      substr(End,1,4)))
 #prepare neuro volume
 neuro <- RIS_neuro %>%
   #pivot longer to combine charge columns into one
@@ -130,10 +138,10 @@ neuro <- RIS_neuro %>%
   mutate(Partner = "729805",
          Hosp = "NY0014",
          DepID = "MSHRIS21050",
-         Start = paste0(substr(Date,6,7), "/",
-                       substr(Date,9,10), "/",
-                       substr(Date,1,4))) %>%
-  #Create second date column
+         Start = paste0(
+           substr(Date, 6, 7),
+           substr(Date, 9, 10),
+           substr(Date, 1, 4))) %>%
   mutate(End = Start) %>%
   #select column order for upload
   select(Partner, Hosp, DepID, Start, End, CPT4)
@@ -142,13 +150,18 @@ neuro <- RIS_neuro %>%
 upload <- rbind(RIS_charge, neuro, RIS_OR_upload) %>%
   group_by(Partner, Hosp, DepID, Start, End, CPT4) %>%
   summarise(volume = n()) %>%
-  mutate(budget = "0")
-  
+  mutate(budget = "0",
+         volume = as.numeric(volume))
+upload <- upload %>%
+  mutate(volume = case_when(
+    DepID == "MSHRIS21008OR" ~ volume * diagnostic_scaling,
+    TRUE ~ volume))
 
 ####################################################  
 old_master <- readRDS(paste0(RIS_dir,"Master/Master.rds"))
-if(max(mdy(old_master$End)) < min(max(mdy(upload$Start)))){
-  new_master <- rbind.data.frame(old_master,upload)
+if(max(mdy(old_master$End)) < min(mdy(upload$Start))){
+  new_master <- rbind(as.data.frame(old_master),
+                      as.data.frame(upload))
 } else {
   stop("Raw data overlaps with master")
 }
@@ -165,12 +178,12 @@ trend <- new_master %>%
   mutate(`Concatenate for lookup` = paste0(substr(End,1,4), qrts, CPT4), 
          volume = as.numeric(volume)) %>%
   left_join(.,cpt_mapping) %>%
-  filter(!is.na(`Facility Total RVU Factor`) | !is.na(`CPT Procedure Count`)) %>%
+  filter(!is.na(`Facility Practice Expense RVU Factor`) | !is.na(`CPT Procedure Count`)) %>%
   left_join(pp_mapping, by = c("End" = 'DATE')) %>%
   left_join(dept_mapping, by = c("DepID" = "Department.ID")) %>%
   mutate(True_Volume = case_when(
     CPT.Group == "Procedure" ~ volume * `CPT Procedure Count`,
-    CPT.Group == "RVU" ~ volume * `Facility Total RVU Factor`)) %>%
+    CPT.Group == "RVU" ~ volume * `Facility Practice Expense RVU Factor`)) %>%
   ungroup() %>%
   group_by(DepID, Department.Description, CPT.Group, END.DATE) %>%
   #na.omit() %>% #Removes NA department
@@ -184,5 +197,5 @@ View(trend)
 saveRDS(trend, paste0(RIS_dir,"Master/Master_Trend.rds"))
 
 #save upload
-write.table(upload,paste0(RIS_dir,"Uploads/MSH_RIS_",month_year,".csv"),
+write.table(upload,paste0(RIS_dir,"Uploads/new_2022/MSH_RIS_",month_year,".csv"),
             sep = ",", row.names = F, col.names = F)
