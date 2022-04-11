@@ -134,7 +134,7 @@ if(max(mdy(old_master$End)) < min(mdy(upload$Start))){
 } else {
   stop("Raw data overlaps with master")
 }
-saveRDS(new_master,paste0(RIS_dir,"Master/Master.rds"))
+saveRDS(new_master,paste0(RIS_dir,"Master/New/Master.rds"))
 ####################################################
 
 #Trend Check
@@ -163,8 +163,8 @@ trend <- new_master %>%
 View(trend)
 
 #Save master trend
-saveRDS(trend, paste0(RIS_dir,"Master/Master_Trend.rds"))
+saveRDS(trend, paste0(RIS_dir,"Master/New/Master_Trend.rds"))
 
 #save upload
-write.table(upload,paste0(RIS_dir,"Uploads/MSQ_RIS_",month_year,".csv"),
+write.table(upload,paste0(RIS_dir,"Uploads/new_2022/MSQ_RIS_",month_year,".csv"),
             sep = ",", row.names = F, col.names = F)
