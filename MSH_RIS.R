@@ -197,5 +197,5 @@ View(trend)
 saveRDS(trend, paste0(RIS_dir,"Master/Master_Trend.rds"))
 
 #save upload
-write.table(upload,paste0(RIS_dir,"Uploads/new_2022/MSH_RIS_",month_year,".csv"),
+write.table(upload,paste0(RIS_dir,"Uploads/MSH_RIS_",month_year,".csv"),
             sep = ",", row.names = F, col.names = F)
