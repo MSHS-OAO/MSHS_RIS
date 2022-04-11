@@ -54,10 +54,30 @@ old_master <- readRDS(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
 #append current upload to master
 new_master <- rbind(old_master, mobile_van)
 
+#Quality check
+pp_mapping <- read_xlsx(paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
+                               "Productivity/Universal Data/Mapping/",
+                               "MSHS_Pay_Cycle.xlsx"))
+
+pp_mapping$DATE <- format(as.Date(pp_mapping$DATE), "%m/%d/%Y")
+pp_mapping$END.DATE <- format(as.Date(pp_mapping$END.DATE), "%m/%d/%Y")
+
+pp_mapping[, 1] <- sapply(pp_mapping[, 1], as.character)
+
+trend <- new_master %>%
+  left_join(pp_mapping, by = c('Date2' = 'DATE')) %>% 
+  ungroup() %>%
+  group_by(DeptID,END.DATE) %>%
+  summarise(Vol = sum(volume, na.rm = T)) %>%
+  pivot_wider(id_cols = c(DeptID),names_from = END.DATE, values_from = Vol)
+
+View(trend)
+
 #save new master 
 saveRDS(new_master, paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
                            "Productivity/Volume - Data/MSH Data/RIS/Master/",
                            "Mobile Van/Master.rds"))
+
 
 #save upload
 
