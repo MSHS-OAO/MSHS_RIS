@@ -10,7 +10,7 @@ RIS_dir <- paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
                   "Productivity/Volume - Data/MSQ Data/RIS/")
 
 #month and year of charge detail
-month_year <- "FEB2022"
+month_year <- "MAR2022"
 
 #read in charge detail
 RIS <- read.csv(paste0(RIS_dir,"Charge Detail/",
@@ -127,7 +127,7 @@ upload <- rbind(RIS_cpt4_upload, RIS_OR_upload) %>%
       substr(End,1,4)))
 
 ##################need to create master append code  
-old_master <- readRDS(paste0(RIS_dir,"Master/Master.rds"))
+old_master <- readRDS(paste0(RIS_dir,"Master/New/Master.rds"))
 if(max(mdy(old_master$End)) < min(mdy(upload$Start))){
   new_master <- rbind(as.data.frame(old_master),
                       as.data.frame(upload))
