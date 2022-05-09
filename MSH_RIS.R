@@ -8,7 +8,7 @@ RIS_dir <- paste0("J:/deans/Presidents/SixSigma/MSHS Productivity/",
                   "Productivity/Volume - Data/MSH Data/RIS/")
 
 #month and year of charge detail
-month_year <- "FEB2022"
+month_year <- "MAR2022"
 #Diagnostic OR scaling factor
 diagnostic_scaling <- 2.69
 
@@ -139,8 +139,8 @@ neuro <- RIS_neuro %>%
          Hosp = "NY0014",
          DepID = "MSHRIS21050",
          Start = paste0(
-           substr(Date, 6, 7),
-           substr(Date, 9, 10),
+           substr(Date, 6, 7), "/",
+           substr(Date, 9, 10), "/",
            substr(Date, 1, 4))) %>%
   mutate(End = Start) %>%
   #select column order for upload
@@ -148,6 +148,8 @@ neuro <- RIS_neuro %>%
 
 #bind both files for upload
 upload <- rbind(RIS_charge, neuro, RIS_OR_upload) %>%
+  mutate(Start = mdy(Start),
+         End = mdy(End)) %>%
   group_by(Partner, Hosp, DepID, Start, End, CPT4) %>%
   summarise(volume = n()) %>%
   mutate(budget = "0",
@@ -155,7 +157,15 @@ upload <- rbind(RIS_charge, neuro, RIS_OR_upload) %>%
 upload <- upload %>%
   mutate(volume = case_when(
     DepID == "MSHRIS21008OR" ~ volume * diagnostic_scaling,
-    TRUE ~ volume))
+    TRUE ~ volume),
+    Start = paste0(
+      substr(Start, 6, 7), "/",
+      substr(Start, 9, 10), "/",
+      substr(Start, 1, 4)),
+    End = paste0(
+      substr(End, 6, 7), "/",
+      substr(End, 9, 10), "/",
+      substr(End, 1, 4)))
 
 ####################################################  
 old_master <- readRDS(paste0(RIS_dir,"Master/Master.rds"))
